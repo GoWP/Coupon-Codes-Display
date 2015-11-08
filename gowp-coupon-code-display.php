@@ -37,7 +37,7 @@ class GoWP_Coupon_Code_Display {
 		add_settings_field(
 			"gowpccd_coupon_codes",
 			"Coupon Codes",
-			array( $this, "field_description" ),
+			array( $this, "gowpccd_coupon_codes_render" ),
 			"gowpccd",
 			"gowpccd_settings"
 		);
@@ -46,6 +46,17 @@ class GoWP_Coupon_Code_Display {
 			"gowpccd_coupon_codes",
 			array( $this, "sanitize_coupon_codes" )
 		);
+		add_settings_field(
+			"gowpccd_restrictions",
+			"Restrictions",
+			array( $this, "gowpccd_restrictions_render" ),
+			"gowpccd",
+			"gowpccd_settings"
+		);
+		register_setting(
+			"gowpccd",
+			"gowpccd_restrictions"
+		);
 	}
 	function settings_description() {
 		?>
@@ -53,7 +64,7 @@ class GoWP_Coupon_Code_Display {
 			<p>Use the <code>[gowpccd]</code> shortcode on any page/post/etc to display one of the codes to a visitor. Each code will be removed after being displayed.</p>
 		<?php
 	}
-	function field_description() {
+	function gowpccd_coupon_codes_render() {
 		$codes = get_option( 'gowpccd_coupon_codes' );
 		?>
 			<textarea cols="40" rows="10" name="gowpccd_coupon_codes"><?php echo $codes; ?></textarea>
@@ -65,6 +76,13 @@ class GoWP_Coupon_Code_Display {
 		$value = array_unique( $value );
 		$value = implode( "\n", $value );
 		return $value;
+	}
+	function gowpccd_restrictions_render() {
+		$restrictions = get_option( "gowpccd_restrictions" );
+		?>
+			<p>Restrict the distribution of coupon codes.</p>
+			<p><label><input type="checkbox" name="gowpccd_restrictions[]" value="ip" <?php checked( in_array( 'ip', $restrictions ) ); ?>> One coupon code per IP address</label></p>
+		<?php
 	}
 	function settings_page() {
 		?>
@@ -78,7 +96,30 @@ class GoWP_Coupon_Code_Display {
 		</div>
 		<?php
 	}
+	function get_ip_address() {
+		if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) { //check ip from share internet
+			$ip = $_SERVER['HTTP_CLIENT_IP'];
+		} elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) { //to check ip is pass from proxy
+			$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+		} else {
+			$ip = $_SERVER['REMOTE_ADDR'];
+		}
+		return $ip;
+	}
 	function shortcode( $atts ) {
+		$restrictions = get_option( "gowpccd_restrictions" );
+		if ( in_array( 'ip', $restrictions ) ) {
+			$ip = $this->get_ip_address();
+			$restricted = get_option( "gowpccd_restricted_ips" );
+			if ( in_array( $ip, $restricted ) ) {
+				return "IP restricted";
+			} else {
+				$time = microtime( TRUE );
+				$restricted[$time] = $ip;
+				update_option( "gowpccd_restricted_ips", $restricted, "no" );
+				print_r( $restricted );
+			}
+		}
 		$codes = get_option( 'gowpccd_coupon_codes' );
 		$codes = explode( "\n", $codes );
 		$code = array_shift( $codes );
